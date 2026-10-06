@@ -55,7 +55,7 @@ step9  compare rankings (revenue only ... value at risk ... risk only) on the te
 
 | What | Where |
 |---|---|
-| Churn definition (90 days, 4+ orders) | `config.py` |
+| Churn definition (90 days, 3+ orders) | `config.py` |
 | Which past dates to train/test on | `config.py` |
 | Which model is used for scoring | `config.CHOSEN_MODEL` (pick after step 6) |
 | Add / change a model | `step5_models.py` → write a function, add it to `MODELS` |
