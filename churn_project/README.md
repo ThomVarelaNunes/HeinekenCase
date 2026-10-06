@@ -24,7 +24,7 @@ In Google Colab: upload the folder, then `!python run_all.py`.
 ## The flow
 
 ```
-config.py ─ all decisions (churn = 4+ orders then 90 days silent, cutoffs, chosen model)
+config.py ─ all decisions (churn = 3+ orders then 90 days silent, cutoffs, chosen model)
    │
 step1  load the CSVs into 4 tables (orders, items, reviews, payments)
 step2  churn definition: who is active / churned / too small on any date + the label
