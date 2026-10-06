@@ -14,7 +14,7 @@ OUTPUT_DIR = "outputs/"   # everything the scripts produce goes here
 DATA_END = pd.Timestamp("2018-09-01")
 
 # --- Churn definition (DECISION) ---------------------------------------------
-MIN_ORDERS = 4      # an account needs this many orders before we call it "established"
+MIN_ORDERS = 3      # an account needs this many orders before we call it "established"
 CHURN_DAYS = 90     # an established account is churned after this many days without an order
 
 # --- Backtesting set-up (DECISION) -------------------------------------------
