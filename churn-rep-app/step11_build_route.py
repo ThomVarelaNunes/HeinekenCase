@@ -6,11 +6,13 @@ its output so the app has something realistic to show:
 
   * the app shows every active account (all regions)
   * the rep's territory for today is Sao Paulo: the visit list = the VISITS highest-priority
-    accounts within RADIUS_KM (by road) of the depot; further accounts are on other days
+    "Save now" accounts within RADIUS_KM (by road) of the depot; further ones are on other days
   * stop order: nearest-neighbour from the depot, improved with 2-opt (shortest loop)
   * distances: straight line x ROAD_FACTOR; drive time at CITY_SPEED (no clock times:
     the rep gets the stores and the order, not a timetable)
-  * calls: the next "Save now" accounts in SP that are not on the route
+  * calls: "Save now" accounts get visits, so calls go to the two middle groups:
+    the top CALLS_PER_SEGMENT "Rescue cheaply" (high risk, low revenue) and
+    "Protect" (low risk, high revenue) accounts in SP, by priority
 
 Output: outputs/mobile_data.json
 Run (after step 8):   python step11_build_route.py
@@ -26,9 +28,10 @@ VISITS = 6
 RADIUS_KM = 14
 ROAD_FACTOR = 1.35          # roads are longer than a straight line
 CITY_SPEED = 24             # km/h, Sao Paulo traffic
-CALLS = 5
+CALLS_PER_SEGMENT = 3
 DEPOT = {"name": "Sao Paulo distribution centre", "lat": -23.5329, "lng": -46.6395}   # assumed start point
 TODAY = "Mon 3 Sep 2018"
+REP_NAME = "Alex"          # the signed-in rep (mock); shown as "Hello, Alex" in the app
 
 
 def km(a, b):
@@ -69,7 +72,9 @@ def build():
     accounts.sort(key=lambda a: a["rank"])
     sp = [a for a in accounts if a["state"] == "SP" and a["lat"] is not None]
 
-    visit_list = [a for a in sp if km(DEPOT, a) <= RADIUS_KM][:VISITS]
+    near = [a for a in sp if km(DEPOT, a) <= RADIUS_KM]
+    visit_list = [a for a in near if a["segment"].startswith("1")][:VISITS]
+    visit_list += [a for a in near if a not in visit_list][:VISITS - len(visit_list)]   # top up if too few Save now
     path = plan([{"id": a["id"], "lat": a["lat"], "lng": a["lng"]} for a in visit_list])
 
     stops, total_km, total_drive = [], 0.0, 0
@@ -81,10 +86,13 @@ def build():
     total_km += back; total_drive += back_min
 
     on_route = {s["id"] for s in stops}
-    calls = [a["id"] for a in sp if a["id"] not in on_route and a["segment"].startswith("1")][:CALLS]
+    calls = []
+    for seg in ("2", "3"):
+        calls += [a for a in sp if a["segment"].startswith(seg)][:CALLS_PER_SEGMENT]
+    calls = [a["id"] for a in sorted(calls, key=lambda a: a["rank"])]
 
     out = {
-        "meta": {**meta, "today": TODAY, "territory": "Sao Paulo",
+        "meta": {**meta, "today": TODAY, "territory": "Sao Paulo", "rep_name": REP_NAME,
                  "route_note": "Route order comes from an assumed route planner (mocked here)."},
         "depot": DEPOT,
         "route": {"stops": stops, "calls": calls, "total_km": round(total_km, 1), "total_drive_min": total_drive,

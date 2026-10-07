@@ -220,7 +220,7 @@ const saveDone = () => { try { localStorage.setItem("tapline-done", JSON.stringi
 const state = { list: "active", seg: "all", q: "", sel: null };
 
 /* ---------- header ---------- */
-$("#asof").textContent = `Data as of 31 Aug 2018 · churn = ${META.min_orders}+ orders, then ${META.churn_days} days without one`;
+$("#asof").textContent = `Data as of 31 Aug 2018 · churn = ${META.min_orders}+ orders, then 2× its usual gap without one (90–180 days)`;
 const T = META.totals;
 $("#totals").innerHTML = [
   [T.active.toLocaleString("en-US"), "active accounts"],
@@ -290,11 +290,11 @@ function renderDocket() {
   const el = $("#docket");
   if (!a) { el.innerHTML = `<p class="empty">Pick an account from the worklist.</p>`; return; }
   const active = a.status === "active", rc = riskClass(a.risk);
-  const left = META.churn_days - a.days_since_last;
+  const line = Math.min(180, Math.max(META.churn_days, Math.round(2 * a.usual_gap_days))), left = line - a.days_since_last;
   const maxPts = Math.max(...a.reasons.map(r => r.points || 0), 1);
 
   const stats = active ? `
-    <div class="stat"><small>Churn risk, next 90 days</small><b class="num" style="color:var(--${rc})">${pct(a.risk)}</b>
+    <div class="stat"><small>Churn risk: crosses its line within 90 days</small><b class="num" style="color:var(--${rc})">${pct(a.risk)}</b>
       <div class="gauge"><i style="width:${Math.round(a.risk * 100)}%;background:var(--${rc})"></i></div></div>
     <div class="stat"><small>Yearly revenue</small><b class="num">${money(a.annual_value)}</b><span>last 12 months</span></div>
     <div class="stat"><small>Value at risk</small><b class="num">${money(a.value_at_risk)}</b><span>risk × yearly revenue</span></div>
@@ -310,7 +310,7 @@ function renderDocket() {
       ${a.reasons.length ? `<div class="reasons">${a.reasons.map(r => `
         <div class="reason"><span>${esc(r.text)}</span><span class="pts num">+${r.points} pts</span>
         <span class="track"><i style="width:${Math.round(100 * r.points / maxPts)}%"></i></span></div>`).join("")}</div>
-        <p class="note">Points: how much lower the risk would be if this one thing were normal for this account.</p>`
+        <p class="note">A typical account has ${pct(META.typical_risk)} risk. The points show where this account's extra ${Math.round((a.risk - META.typical_risk) * 100)} points come from; account size and other factors make up the rest.</p>`
       : `<p class="note">No single fixable cause stands out. Risk comes mostly from the account's size and irregular rhythm.</p>`}
     </div>` : `
     <div class="card"><h3>What happened</h3>

@@ -65,7 +65,9 @@ a { color: inherit; }
 .brandrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .mark { display: flex; align-items: center; gap: 9px; font: 800 16px/1 var(--font-display); letter-spacing: .02em; }
 .mark i { width: 26px; height: 26px; border-radius: 8px; background: var(--hero-ink); display: grid; place-items: center; }
-.mark i::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+.mark i::after { content: ""; width: 16px; height: 16px; background: var(--red);
+  clip-path: polygon(50% 0%, 61.8% 36.2%, 100% 36.2%, 69.1% 58.6%, 80.9% 95.1%, 50% 72.6%, 19.1% 95.1%, 30.9% 58.6%, 0% 36.2%, 38.2% 36.2%); }
+.hello { font: 700 20px/1.2 var(--font-display); }
 .hero h1 { margin: 0; font: 800 28px/1.08 var(--font-display); letter-spacing: -.01em; text-wrap: balance; }
 .hero h1.id { font-size: 34px; letter-spacing: .02em; }
 .hero .sub { color: var(--hero-muted); font-size: 14px; }
@@ -146,7 +148,9 @@ a { color: inherit; }
 .callrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px 10px; text-align: left; width: 100%; }
 .callrow .acc { font: 700 15px var(--font-display); }
 .callrow small { color: var(--muted); display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.callrow > span:first-child { min-width: 0; }
+.callrow > span:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.callrow > .pill { flex: 0 0 auto; }
+.callrow .acc { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 /* ---------- reasons, facts, chart ---------- */
 .reason { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
@@ -163,11 +167,6 @@ a { color: inherit; }
 .lines { display: flex; flex-wrap: wrap; gap: 5px; }
 .lines span { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--sunk); font-weight: 500; }
 .lines span.dropped { background: var(--red-soft); color: var(--red); }
-.chart svg { width: 100%; height: auto; display: block; }
-.chart .b { fill: var(--bar); } .chart .b.recent { fill: var(--bar-recent); }
-.chart .axis { fill: var(--muted); font: 10px var(--font-body); }
-.chart .grid { stroke: var(--line); }
-.chart .avg { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 4 3; }
 blockquote { margin: 0; padding: 10px 12px; border-left: 3px solid var(--red); background: var(--sunk); border-radius: 0 10px 10px 0; font-style: italic; font-size: 14px; }
 .stars { color: var(--red); letter-spacing: 2px; }
 
@@ -310,11 +309,11 @@ const NAV_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 /* ---------- shared pieces ---------- */
 function reasonsHTML(a) {
-  if (!a.reasons.length) return `<p class="hint">No single fixable cause stands out; risk comes mostly from the account's size and irregular rhythm.</p>`;
+  if (!a.reasons.length) return a.risk <= META.typical_risk ? `<p class="hint">Lower risk than a typical account (${pct(META.typical_risk)}). Nothing stands out.</p>` : `<p class="hint">No single fixable cause stands out; the extra risk comes mostly from the account's size and ordering rhythm.</p>`;
   const max = Math.max(...a.reasons.map(r => r.points || 0), 1);
   return a.reasons.map(r => `<div class="reason"><span>${esc(r.text)}</span><span class="pts num">+${r.points} pts</span>
     <span class="track"><i style="width:${Math.round(100 * r.points / max)}%"></i></span></div>`).join("") +
-    `<p class="hint">Points: how much lower the risk would be if this one thing were normal for this account.</p>`;
+    `<p class="hint">A typical account has ${pct(META.typical_risk)} risk. The points show where this account's extra ${Math.round((a.risk - META.typical_risk) * 100)} points come from; account size and other factors make up the rest.</p>`;
 }
 
 function objective(a) {
@@ -336,23 +335,6 @@ function checklist(a) {
   ];
 }
 
-function chart(a) {
-  const v = a.monthly_spend, months = META.months, W = 340, H = 140, L = 34, R = 4, T = 8, B = 20;
-  const max = Math.max(...v, 1), p = Math.pow(10, Math.floor(Math.log10(max)));
-  const nice = [1, 2, 2.5, 5, 10].map(k => k * p).find(x => x >= max);
-  const y = x => T + (H - T - B) * (1 - x / nice), bw = (W - L - R) / v.length;
-  const avg = v.slice(-12).reduce((s, x) => s + x, 0) / 12;
-  const lab = m => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m.split("-")[1] - 1] + " " + m.slice(2, 4);
-  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Spend per month, Jan 2017 to Aug 2018">`;
-  for (const t of [0, nice / 2, nice]) s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis" x="${L - 5}" y="${y(t) + 3}" text-anchor="end">${t >= 1000 ? (t / 1000).toFixed(t % 1000 ? 1 : 0) + "k" : Math.round(t)}</text>`;
-  v.forEach((x, i) => {
-    s += `<rect class="b${i >= v.length - 3 ? " recent" : ""}" x="${L + i * bw + 1.5}" y="${y(x)}" width="${bw - 3}" height="${Math.max(0, y(0) - y(x))}" rx="1.5"><title>${months[i]}: ${money(x)}</title></rect>`;
-    if (i % 4 === 0 || i === v.length - 1) s += `<text class="axis" x="${i === v.length - 1 ? W - R : L + i * bw + bw / 2}" y="${H - 5}" text-anchor="${i === v.length - 1 ? "end" : "middle"}">${lab(months[i])}</text>`;
-  });
-  if (avg > 0) s += `<line class="avg" x1="${L}" x2="${W - R}" y1="${y(avg)}" y2="${y(avg)}"/>`;
-  return s + `</svg><div class="maplegend"><span><i style="background:var(--bar-recent);border-radius:2px"></i>last 3 months</span><span><i style="background:var(--bar);border-radius:2px"></i>earlier</span><span>– – 12-month average</span></div>`;
-}
-
 /* ---------- map (drawn to scale from lat/lng) ---------- */
 function mapSVG() {
   const pts = [DEPOT, ...VISITS.map(v => ACC[v.id])];
@@ -371,7 +353,7 @@ function mapSVG() {
     <path class="road" style="stroke-width:6" d="M${W * .7} -10 L ${W * .78} ${H + 10}"/>
     <polyline class="route" points="${path.map(p => X(p).toFixed(1) + "," + Y(p).toFixed(1)).join(" ")}"/>
     <polyline class="route back" points="${X(path[path.length - 1]).toFixed(1)},${Y(path[path.length - 1]).toFixed(1)} ${X(DEPOT).toFixed(1)},${Y(DEPOT).toFixed(1)}"/>
-    <g class="depot"><rect x="${X(DEPOT) - 6}" y="${Y(DEPOT) - 6}" width="12" height="12" rx="3"/><text x="${X(DEPOT)}" y="${Y(DEPOT) - 15}" style="fill:var(--ink)">DC</text></g>`;
+    <g class="depot"><rect x="${X(DEPOT) - 6}" y="${Y(DEPOT) - 6}" width="12" height="12" rx="3"/><text x="${X(DEPOT)}" y="${Y(DEPOT) - 15}" style="fill:var(--ink)">Start</text></g>`;
   VISITS.forEach(v => {
     const a = ACC[v.id], cls = isDone(v.id) ? "done" : nv && nv.id === v.id ? "next" : "up";
     s += `<g class="pin ${cls}" data-open="${v.id}" tabindex="0" role="button" aria-label="Stop ${v.stop}, account ${v.id}"><circle cx="${X(a)}" cy="${Y(a)}" r="11"/><text x="${X(a)}" y="${Y(a)}">${isDone(v.id) ? "✓" : v.stop}</text></g>`;
@@ -384,7 +366,7 @@ function renderToday() {
   const done = VISITS.filter(v => isDone(v.id)).length, nv = nextVisit();
   const varRoute = VISITS.reduce((s, v) => s + (ACC[v.id].value_at_risk || 0), 0);
   const minor = html => `<div class="tl minor"><div class="rail"><span class="dot"></span></div><div class="body">${html}</div></div>`;
-  let rows = minor(`<div class="minorline"><b>Start</b> at ${esc(DEPOT.name.replace("Sao Paulo", "São Paulo"))}</div>`);
+  let rows = minor(`<div class="minorline"><b>Start</b></div>`);
   for (const s of VISITS) {
     const a = ACC[s.id], cls = isDone(s.id) ? "done" : nv && nv.id === s.id ? "next" : "";
     const [sl, sc] = seg(a);
@@ -395,14 +377,15 @@ function renderToday() {
         <span class="meta"><span class="tag ${sc}">${sl}</span><span class="num">${s.drive_min} min drive · ${s.km} km</span>${isDone(s.id) ? `<span>${esc(day.done[s.id])}</span>` : ""}</span>
       </button></div></div>`;
   }
-  rows += minor(`<div class="minorline"><b>Back</b> to the distribution centre · ${ROUTE.return_min} min · ${ROUTE.return_km} km</div>`);
-  const calls = `<section class="card"><h2>Calls today</h2><p class="hint">${CALLS.ids.length} Save-now accounts in your area that are not on today's route.</p>
+  rows += minor(`<div class="minorline"><b>Back</b> to start · ${ROUTE.return_min} min · ${ROUTE.return_km} km</div>`);
+  const calls = `<section class="card"><h2>Calls today</h2><p class="hint">High risk with low revenue (Rescue cheaply) and low risk with high revenue (Protect). Save-now accounts get a visit instead.</p>
     <div class="calllist">${CALLS.ids.map(id => { const a = ACC[id]; return `<button type="button" class="callrow" data-open="${id}">
-      <span><span class="acc">${id}</span><small>${esc(city(a))} · ${esc(a.reasons[0]?.text || "")}</small></span><span class="pill p-${rc(a.risk)} num">${pct(a.risk)}</span></button>`; }).join("")}</div></section>`;
+      <span><span class="acc">${id} <span class="tag ${seg(a)[1]}">${seg(a)[0]}</span></span><small>${esc(city(a))} · ${esc(a.reasons[0]?.text || "")}</small></span><span class="pill p-${rc(a.risk)} num">${pct(a.risk)}</span></button>`; }).join("")}</div></section>`;
 
   return `
   <header class="hero">
     <div class="brandrow"><span class="mark"><i></i>Fieldline</span><span class="sub">${esc(META.today)}</span></div>
+    <div class="hello">Hello, ${esc(META.rep_name || "there")}</div>
     <div><div class="eyebrow">Today's route · São Paulo</div><h1>${done === VISITS.length ? "All visits done. Time for your calls." : nv ? `Next stop: ${nv.id}` : ""}</h1></div>
     <div class="chiprow k4">
       <div class="hchip"><b class="num">${done}/${VISITS.length}</b><small>visits</small></div>
@@ -415,11 +398,11 @@ function renderToday() {
   <div class="pad stack">
     <section class="card lift map"><div class="progress"><div class="top"><span>Day progress</span><span class="num">${done} of ${VISITS.length} visits</span></div><div class="bar"><i style="width:${100 * done / VISITS.length}%"></i></div></div>
       ${mapSVG()}
-      <div class="maplegend"><span><i style="background:var(--red)"></i>next</span><span><i style="background:var(--brand-mid)"></i>upcoming</span><span><i style="background:var(--ok)"></i>done</span><span><i style="background:var(--ink);border-radius:2px"></i>DC: start and end</span></div>
+      <div class="maplegend"><span><i style="background:var(--red)"></i>next</span><span><i style="background:var(--brand-mid)"></i>upcoming</span><span><i style="background:var(--ok)"></i>done</span><span><i style="background:var(--ink);border-radius:2px"></i>start</span></div>
     </section>
     <section class="card"><h2>Stores to visit</h2><p class="hint">In driving order from the route planner.</p><div class="timeline">${rows}</div></section>
     ${calls}
-    <p class="foot">Data as of 31 Aug 2018. The route order is a mock of the route planner's output. ${done ? `<button type="button" class="linkbtn" id="resetDay">Reset day</button>` : ""}</p>
+    <p class="foot">© Fieldline 2026 ${done ? `<button type="button" class="linkbtn" id="resetDay">Reset day</button>` : ""}</p>
   </div>`;
 }
 
@@ -503,7 +486,7 @@ function actionCard(a) {
 }
 function renderDetail(id) {
   const a = ACC[id], [sl, sc] = seg(a), v = ON_ROUTE[id];
-  const left = META.churn_days - a.days_since_last, c = a.complaint;
+  const line = Math.min(180, Math.max(META.churn_days, Math.round(2 * a.usual_gap_days))), left = line - a.days_since_last, c = a.complaint;
   const late = a.late_share == null ? "–" : Math.round(a.late_share * 100) + "% late" + (a.last_order_late ? ", incl. the last one" : "");
   return `<div class="topbar"><button type="button" id="back">← Back</button><span>Account overview</span></div>
   <header class="hero">
@@ -513,20 +496,20 @@ function renderDetail(id) {
   </header>
   <div class="pad stack">
     <div class="stats lift">
-      <div class="stat"><small>Churn risk, 90 days</small><b class="num" style="color:var(--${rc(a.risk) === "hi" ? "red" : rc(a.risk) === "mid" ? "amber" : "ok"})">${pct(a.risk)}</b><span>no order in next 90 days</span></div>
+      <div class="stat"><small>Churn risk, 90 days</small><b class="num" style="color:var(--${rc(a.risk) === "hi" ? "red" : rc(a.risk) === "mid" ? "amber" : "ok"})">${pct(a.risk)}</b><span>crosses its churn line within 90 days</span></div>
       <div class="stat"><small>Value at risk</small><b class="num">${money(a.value_at_risk)}</b></div>
       <div class="stat"><small>Yearly revenue</small><b class="num">${money(a.annual_value)}</b><span>last 12 months</span></div>
       <div class="stat"><small>Last order</small><b class="num">${a.days_since_last} days</b><span>usually every ${Math.round(a.usual_gap_days)} · ${left > 0 ? left + "d to churn line" : "past churn line"}</span></div>
     </div>
     ${actionCard(a)}
-    <section class="card"><h2>Why this account is at risk</h2>${reasonsHTML(a)}</section>
+    <section class="card"><h2>Why this account is at risk</h2>${reasonsHTML(a)}
+      <p class="hint"><b>Its own churn line: ${line} days.</b> This account usually orders every ${Math.round(a.usual_gap_days)} days, so it counts as churned after ${line} days without an order (2× its rhythm, at least ${META.churn_days} and at most 180). The risk is the chance it crosses that line in the next 90 days.</p></section>
     <section class="card"><h2>Account</h2><dl class="facts">
       <dt>Orders</dt><dd class="num">${a.n_orders} total · ${a.orders_last_90d ?? 0} in last 90 days (usually ${(a.usual_orders_per_90d ?? 0).toFixed(1)})</dd>
       <dt>Deliveries</dt><dd>${late}</dd>
       <dt>Delivery cost</dt><dd class="num">${a.freight_share == null ? "–" : Math.round(a.freight_share * 100) + "% of what it pays"}</dd>
       <dt>Reviews</dt><dd class="num">${a.avg_review == null ? "none yet" : a.avg_review.toFixed(1) + " / 5 average"}</dd>
     </dl></section>
-    <section class="card chart"><h2>Spend per month</h2>${chart(a)}</section>
     ${c ? `<section class="card"><h2>Most recent complaint</h2>
       <div><span class="stars" aria-label="${c.score} of 5 stars">${"★".repeat(c.score)}${"☆".repeat(5 - c.score)}</span> <span class="hint" style="display:inline">· ${c.days_ago} days ago · ${esc(c.theme)}</span></div>
       ${c.text || c.title ? `<blockquote lang="pt">${esc([c.title, c.text].filter(Boolean).join(" — "))}</blockquote><p class="hint">Original Portuguese. The call brief translates it.</p>` : `<p class="hint">Low score, no comment written.</p>`}</section>` : ""}

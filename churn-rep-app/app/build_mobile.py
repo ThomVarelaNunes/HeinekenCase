@@ -15,7 +15,7 @@ ROOT = os.path.dirname(HERE)
 COLS = ["id", "city", "state", "lat", "lng", "rank", "segment", "risk", "annual_value", "value_at_risk",
         "reasons", "n_orders", "days_since_last", "usual_gap_days", "orders_last_90d", "usual_orders_per_90d",
         "late_share", "last_order_late", "freight_share", "avg_review", "top_lines", "dropped_line",
-        "monthly_spend", "complaint", "action", "offer", "channel"]
+        "complaint", "action", "offer", "channel"]
 TEXT = {"city", "state", "segment", "dropped_line", "action", "offer", "channel"}
 ROUND = {"lat": 5, "lng": 5, "risk": 4, "annual_value": 0, "value_at_risk": 0, "usual_gap_days": 1,
          "usual_orders_per_90d": 2, "late_share": 3, "freight_share": 3, "avg_review": 2}

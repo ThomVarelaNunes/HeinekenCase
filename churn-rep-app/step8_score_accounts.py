@@ -47,36 +47,83 @@ REASON_TEXT = {
     "dropped_categories":  "Stopped buying a product line it used to buy",
     "dropped_spend":       "Stopped buying a product line it used to buy",
     "categories_last_90d": "Buying fewer product lines than before",
+    "usual_gap_days":      "Orders only every few months",
+}
+
+# FACT CHECK: a reason is only shown when the account's OWN numbers back it up.
+# Without this, overlapping inputs can produce reasons that contradict the data
+# (e.g. "ordering below its usual pace" for an account ordering above it).
+# Each check gets the account's features (x) and the typical values (typ).
+FACT_CHECK = {
+    "overdue_ratio":       lambda x, typ: x.overdue_ratio > 1,
+    "days_since_last":     lambda x, typ: x.days_since_last > x.usual_gap_days,
+    "orders_last_90d":     lambda x, typ: x.orders_last_90d < x.usual_orders_per_90d,
+    "trend_vs_usual":      lambda x, typ: x.trend_vs_usual < 0.8,
+    "freight_share":       lambda x, typ: x.freight_share > typ["freight_share"],
+    "last_order_late":     lambda x, typ: x.last_order_late == 1,
+    "late_share":          lambda x, typ: x.late_share > max(typ["late_share"], 0),
+    "late_last_90d":       lambda x, typ: x.late_last_90d > 0,
+    "max_days_late_90d":   lambda x, typ: x.max_days_late_90d > 0,
+    "low_reviews_90d":     lambda x, typ: x.low_reviews_90d > 0,
+    "last_review":         lambda x, typ: x.has_review == 1 and x.last_review <= 2,
+    "avg_review":          lambda x, typ: x.has_review == 1 and x.avg_review < 3.5,
+    "failed_orders_90d":   lambda x, typ: x.failed_orders_90d > 0,
+    "dropped_categories":  lambda x, typ: x.dropped_categories > 0,
+    "dropped_spend":       lambda x, typ: x.dropped_spend > 0,
+    "categories_last_90d": lambda x, typ: x.dropped_categories > 0,
+    "usual_gap_days":      lambda x, typ: x.usual_gap_days > config.CHURN_DAYS,
 }
 N_REASONS = 3              # how many reasons to keep per account
 MIN_REASON_POINTS = 1.0    # ignore reasons that move risk by less than 1 percentage point
 
 
 def what_if_reasons(model, X, cols, typical):
-    """Top reasons per account, with their size in percentage points of churn risk."""
+    """Top reasons per account, sized so that they ADD UP.
+
+    1. typical_risk = the model's risk for a typical account (every input at its median).
+    2. For EVERY input, measure how much it pushes this account's risk up, on the model's
+       log-odds scale (where effects add up), by setting that one input to typical.
+    3. The account's extra risk above typical (risk - typical_risk) is split over the inputs
+       that push it up, in proportion. So all shares together = the extra risk.
+    4. Only actionable inputs that pass the fact check are shown; size and other
+       non-fixable inputs keep their share but are not listed.
+    """
+    logit = lambda p: np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6)))
     base = model.predict_proba(X[cols])[:, 1]
-    points = {}
-    for f in REASON_TEXT:
-        if f not in cols:
-            continue
+    typical_risk = float(model.predict_proba(typical[cols].to_frame().T.astype(float))[0, 1])
+
+    push = {}
+    for f in cols:
         X2 = X[cols].copy()
         X2[f] = typical[f]
-        points[f] = (base - model.predict_proba(X2)[:, 1]) * 100   # + = this feature raises risk
-    points = pd.DataFrame(points, index=X.index)
+        push[f] = logit(base) - logit(model.predict_proba(X2)[:, 1])   # + = raises risk
+    push = pd.DataFrame(push, index=X.index).clip(lower=0)
+    share = push.div(push.sum(axis=1).replace(0, np.nan), axis=0).fillna(0)
+    extra = np.clip(base - typical_risk, 0, None) * 100                  # percentage points
+    points = share.mul(extra, axis=0)
+
+    # keep actionable inputs only, and only when the account's own numbers back them up
+    points = points[[f for f in REASON_TEXT if f in points.columns]].copy()
+    for f in points.columns:
+        ok = X.apply(lambda x: bool(FACT_CHECK[f](x, typical)), axis=1)
+        points.loc[~ok, f] = np.nan
+    # inputs that share one sentence are added together
+    by_text = {}
+    for f in points.columns:
+        by_text.setdefault(REASON_TEXT[f], []).append(f)
+    points = pd.DataFrame({t: points[fs].sum(axis=1, min_count=1) for t, fs in by_text.items()})
 
     def top_reasons(row):
-        row = row[row >= MIN_REASON_POINTS].sort_values(ascending=False)
-        texts, sizes = [], []
-        for f, pts in row.items():
-            if REASON_TEXT[f] not in texts:          # same sentence only once
-                texts.append(REASON_TEXT[f]); sizes.append(round(pts, 1))
-        texts, sizes = texts[:N_REASONS], sizes[:N_REASONS]
+        row = row.dropna()
+        row = row[row >= MIN_REASON_POINTS].sort_values(ascending=False)[:N_REASONS]
+        texts, sizes = list(row.index), [round(v, 1) for v in row.values]
         pad = N_REASONS - len(texts)
         return texts + [""] * pad + sizes + [np.nan] * pad
 
     reasons = points.apply(top_reasons, axis=1, result_type="expand")
     reasons.columns = [f"reason_{i}" for i in range(1, N_REASONS + 1)] + \
                       [f"reason_{i}_points" for i in range(1, N_REASONS + 1)]
+    reasons["typical_risk"] = typical_risk
     return base, reasons
 
 
@@ -114,6 +161,7 @@ def score(tables=None):
 
     active = status.index[status.status == "active"]
     typical = all_labelled[cols].median()
+    typical["has_review"] = 1
     risk, reasons = what_if_reasons(model, X.loc[active], cols, typical)
 
     # 3. risk, money, ranking, segment

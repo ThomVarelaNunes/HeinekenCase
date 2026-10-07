@@ -24,7 +24,6 @@ from step3_features import build_features
 
 N_ACTIVE = 300      # how many active accounts the app gets (by priority)
 N_WINBACK = 100     # how many churned accounts for the win-back list
-REP_VISITS = 35     # top "Save now" accounts that get a visit this week
 
 # --- Next best action per main reason (DECISION: edit freely) -----------------
 ACTIONS = {
@@ -64,9 +63,9 @@ WINBACK_ACTION = ("Win-back call: ask why they stopped, fix it, reopen with an o
                   "Come-back bundle: usual lines with 10% off the first order back")
 
 CHANNEL = {
-    "1 Save now (high risk, high value)": "Rep phone call this week",
-    "2 Rescue cheaply (high risk, low value)": "AI voice agent call (hands over to rep if unhappy)",
-    "3 Protect (low risk, high value)": "Rep check-in at next visit",
+    "1 Save now (high risk, high value)": "Rep visit",
+    "2 Rescue cheaply (high risk, low value)": "Phone call (rescue cheaply)",
+    "3 Protect (low risk, high value)": "Phone call (keep the relationship warm)",
     "4 Monitor (low risk, low value)": "Automated reorder reminder",
 }
 
@@ -137,10 +136,8 @@ def export(n_active=N_ACTIVE, n_winback=N_WINBACK, filename="app_data.json"):
         is_active = r.status == "active"
         main = r.reason_1 if isinstance(r.reason_1, str) and r.reason_1 else None
         action, offer = (ACTIONS.get(main, DEFAULT_ACTION) if is_active else WINBACK_ACTION)
-        if is_active and r.segment.startswith("1") and r.priority_rank <= REP_VISITS:
-            channel = "Rep visit this week"
-        else:
-            channel = CHANNEL.get(r.segment, "Rep phone call") if is_active else (
+        if True:
+            channel = CHANNEL.get(r.segment, "Phone call") if is_active else (
                 "Rep phone call" if r.winback_rank <= 30 else "AI voice agent call (hands over to rep if unhappy)")
         complaint = None
         if a in low.index:
@@ -149,7 +146,7 @@ def export(n_active=N_ACTIVE, n_winback=N_WINBACK, filename="app_data.json"):
                          "days_ago": int((cut - c.review_answer_timestamp).days),
                          "title": c.review_comment_title if isinstance(c.review_comment_title, str) else None,
                          "text": c.review_comment_message if isinstance(c.review_comment_message, str) else None,
-                         "theme": theme(c.review_comment_message)}
+                         "theme": theme(" ".join(x for x in [c.review_comment_title, c.review_comment_message] if isinstance(x, str)))}
         x = X.loc[a]
         out.append({
             "id": a,
@@ -186,6 +183,7 @@ def export(n_active=N_ACTIVE, n_winback=N_WINBACK, filename="app_data.json"):
 
     meta = {"today": "2018-08-31", "months": [str(m) for m in months],
             "churn_days": config.CHURN_DAYS, "min_orders": config.MIN_ORDERS,
+            "typical_risk": round(float(scored.typical_risk.dropna().iloc[0]), 4),
             "model": config.CHOSEN_MODEL, "risk_weight": config.RISK_WEIGHT,
             "totals": {
                 "active": int((scored.status == "active").sum()),

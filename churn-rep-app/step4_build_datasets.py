@@ -6,10 +6,11 @@ For every cutoff:
     2. describe them with features known before that date           (step 3)
     3. attach the label: did they churn in the next CHURN_DAYS?     (step 2)
 
-Training cutoffs and the test cutoff come from config.py. Because the test cutoff
-is LATER than all training outcomes, the test score tells us how well the model
-would have worked on accounts it had never seen, in months it had never seen.
-That is the honest way to test a churn model.
+Training cutoffs and the test cutoff come from config.py. This is a split by TIME,
+not a random split: the test cutoff is LATER than every training outcome, so the
+test score shows how well the model would have worked on months it had never seen.
+Many accounts appear in both (with older data in training); no information from
+after the test cutoff is used anywhere. That is the honest way to test a churn model.
 
 The result is saved to outputs/datasets.pkl so later steps don't rebuild it.
 Run:   python step4_build_datasets.py

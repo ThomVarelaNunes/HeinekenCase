@@ -15,7 +15,7 @@ DATA_END = pd.Timestamp("2018-09-01")
 
 # --- Churn definition (DECISION) ---------------------------------------------
 MIN_ORDERS = 3      # an account needs this many orders before we call it "established"
-CHURN_DAYS = 90     # an established account is churned after this many days without an order
+CHURN_DAYS = 90     # minimum churn line AND the prediction window; the full rule (2x own gap, 90-180 days) is in step 2
 
 # --- Backtesting set-up (DECISION) -------------------------------------------
 # A "cutoff" is a pretend "today" in the past. At each cutoff we build features from
@@ -32,7 +32,7 @@ for c in TRAIN_CUTOFFS:
 
 # --- Model choice (DECISION, fill in after running step6) ---------------------
 # Must be one of the names in step5_models.MODELS.
-CHOSEN_MODEL = "Logistic regression"
+CHOSEN_MODEL = "Logistic regression (L1)"  # same accuracy as plain LR, cleaner reasons (drops duplicate inputs)
 
 # --- Prioritisation (DECISION) ------------------------------------------------
 TOP_SHARE = 0.10    # used in evaluation: "how many churners are in the riskiest 10%?"
@@ -45,7 +45,7 @@ TOP_SHARE = 0.10    # used in evaluation: "how many churners are in the riskiest
 RISK_WEIGHT = 0.6
 
 # Segments shown in the app (risk x value matrix)
-HIGH_RISK = 0.40    # churn_risk at or above this = "high risk" (about the riskiest 15% today)
+HIGH_RISK = 0.35    # rhythm variant with 180-day cap: 0.35 = about the riskiest 15% today
 HIGH_VALUE_QUANTILE = 0.50  # annual_value above the median of active accounts = "high value"
 
 RANDOM_STATE = 42
